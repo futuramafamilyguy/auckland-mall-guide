@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  server:
+    build:
+      context: ./server
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGO_URI=${MONGO_URI}
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data:/data/db
+      - ./mongodb/scripts:/docker-entrypoint-initdb.d
