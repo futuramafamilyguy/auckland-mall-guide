@@ -7,7 +7,7 @@ body {
 }
 
 .mall {
-  border: 3px solid #007bff;
+  border: 3px solid black;
   border-radius: 8px;
   padding: 20px;
   margin: 10px auto;
@@ -15,4 +15,8 @@ body {
   width: 500px;
   text-align: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.review {
+  font-style: italic;
 }
