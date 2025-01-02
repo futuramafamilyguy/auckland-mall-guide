@@ -44,3 +44,34 @@ setup:
 - once you find your host's private IP, you can verify it's reachable from the container by running `ping <host private ip>` inside the container
 - if it works, set env var `MONGO_URI=mongodb://<host private ip>:27017/auckland-mall-guide` in `docker-compose.yml`
 - if running docker on windows and macos, there is a `host.docker.internal` address that resolves to the host's private IP reachable by its containers
+
+<hr>
+
+### [split network access](https://github.com/futuramafamilyguy/auckland-mall-guide/tree/split-network)
+
+client and server are exposed via the host network while database access is kept within the internal docker network
+
+this setup aims to use docker's internal networking wherever possible to adhere to "least privilege". server communicates with the database internally but the client and server are exposed to the public. exposing the client is obvious as it serves as the "entrypoint" to the web app (ie. users interact with the webpage which in turn make calls to the server). the reason the server also needs to be exposed is that the client container does not run the react app itself but instead a service that serves webpages to the user's browser. and so what ends up making requests to the server is not the client container (which resides on the same host and can communicate with the server internally) but the user node or browser which is why the server also needs a public entrypoint. you can think of eposing the server container as a necessary evil here. maybe a [lesser evil](https://allenmaygibson.com/blog/geralt-takes-idioms-literally)?
+
+suitable if:
+
+- ceebs setting up a reverse proxy
+
+<br>
+
+setup:
+
+- no need to set up port publishing for mongodb because server will communicate with it via docker's internal network
+- server depends on `MONGO_URI` env var so set it to `mongodb://mongodb:27017/auckland-mall-guide` (this will be the same for both prod and local)
+- server needs to be publicly accessible so set up port publishing `3000:3000` (server app listens on 3000 within the container and will receive requests sent to port 3000 of the host)
+- client needs to be publicly accessible so set up port publishing `3001:3000` (serve-webpage service listens on 3000 within the client container so there is no conflict with the server app listening on 3000 in the server container but the host port must be different to avoid conflicts)
+
+**prod**
+
+- client depends on `VITE_API_URL` env var so set it to `http://mydomain.com:3000/api/malls` (server container which is accessible via host's port 3000)
+- client itself will be accessible at `http://mydomain.com:3001`
+
+**local environment**
+
+- client depends on `VITE_API_URL` env var so set it to `http://localhost:3000/api/malls`
+- client itself will be accessible at `http://localhost:3001`
