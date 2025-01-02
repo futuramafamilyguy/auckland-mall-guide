@@ -9,10 +9,16 @@ services:
     environment:
       - MONGO_URI=${MONGO_URI}
 
+  client:
+    build:
+      context: ./client
+    ports:
+      - "3001:3000"
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+
   mongodb:
     image: mongo:latest
-    ports:
-      - "27017:27017"
     volumes:
       - ./data:/data/db
       - ./mongodb/scripts:/docker-entrypoint-initdb.d
