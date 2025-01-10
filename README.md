@@ -65,6 +65,10 @@ setup:
 - server depends on `MONGO_URI` env var so set it to `mongodb://mongodb:27017/auckland-mall-guide` (this will be the same for both prod and local)
 - server needs to be publicly accessible so set up port publishing `3000:3000` (server app listens on 3000 within the container and will receive requests sent to port 3000 of the host)
 - client needs to be publicly accessible so set up port publishing `3001:3000` (serve-webpage service listens on 3000 within the client container so there is no conflict with the server app listening on 3000 in the server container but the host port must be different to avoid conflicts)
+- should mention that in `docker-compose.yml`, `VITE_API_URL` is declared as a build arg instead of an env var
+  - is because vite requires all env vars to be available during build time. once the app has been built, it can't retroactively read env vars on the host (in our case the client container) it's running on
+  - declaring `VITE_API_URL` as env var in `docker-compose.yml` will simply set the `VITE_API_URL` env var in the resulting container _after_ react app has been built so it does nothing
+  - declaring `VITE_API_URL` as build arg instead will pass it to docker's temporary build environment used to run instructions in the Dockerfile and set it as an env var in the temporary environment (`ARG VITE_API_URL` and `ENV VITE_API_URL=$VITE_API_URL` in the Dockerfile) which can be accessed by vite during build time
 
 **prod**
 
