@@ -145,3 +145,51 @@ this section just goes into some stuff docker compose abstracts away from us (if
     - you can see this already working when using docker compose without any additional network configuration in the setup section under split network access where server container's env var for mongodb connection string is `mongodb://mongodb:27017/auckland-mall-guide` (ie. uses service name and not private IP)
       - works because server and mongodb containers are created via docker compose and therefore both containers are on the default custom network created by docker compose (**not** the bridge network)
 - it can still be beneficial to declare custom networks in docker compose yml instead of relying on its default one because you can group containers together and place them in separate networks to disable communication between certain containers while allowing them to communicate with other containers
+
+<hr>
+
+### [split network with reverse proxy](https://github.com/futuramafamilyguy/auckland-mall-guide/tree/nginx-split)
+
+same set up as split network but with nginx set up as a reverse proxy
+
+this means client and server are still accessible via host network just with nginx (also accessible via host network). this set up is not recommended at all since the purpose of a reverse proxy is to prevent direct communication between users and your apps (client and server in this case) so having a reverse proxy _and_ publicly available client and server containers defeats its purpose. just thought i'd do a section here to explain how nginx works so the next section on the recommended set up for reverse proxy won't as bloated with info
+
+only going to do local environment since this isn't recommended anyway
+
+client and server still accessible at `http://localhost:3001` and `http://localhost:3000` respectively. this is not great as mentioned in the previous section, but a necessary evil because users need something publicly available for them to interact with. nginx is meant to server as a single point of entry for users into the system so no matter what, nginx must be publicly accessible
+
+**what ports should nginx be accessible at?**
+
+first thing to understand is that in a typical fullstack web app, users (via the browser) make requests to fetch the client pages and when they interact with them, the client pages would send requests to the backend server (also via the browser). because both requests are made from external sources, this is why the server must be publicly accessible as well. before, it was easy targeting each container because they listened on different ports in the host but now that all requests go through nginx first, need a different way to differentiate the requests. common practice in production would be for client requests to target `domain.com` and server requests `api.domain.com`. both need to be set up to point to the host IP using DNS records. this means the reverse proxy would be listening on default ports like port 80 for http (which is why there are no ports specified) which is a good practice since these are user-facing. both requests would arrive at the same host on port 80 and nginx would be configured to route requests to their respective containers (based on the presence of `api` subdomain). in our case, because we're running this locally, we can only use `localhost` which means we can't use subdomains (not easily anyway). for the next best option, we will use default port 80 for client and port 8080 for server container since users don't directly call the server, their browser does so behind the scenes. so need to expose two ports for nginx: 80 (request flow: browser -> `http://localhost` -> client container) and 8080 (request flow: browser -> `http://localhost:8080` -> server container)
+
+**how to configure nginx?**
+
+in a nutshell, using nginx's config file `*.conf` you specify which ports nginx should listen on and the url the request should be forwarded to given the port (`proxy_pass`). in our case, want to intercept requests that arrive at port 80 and forward them to client container and requests that arrive at port 8080 which should be forwarded to server container. client and server containers are both accessible using `localhost` of the host, but the problem with targeting `localhost` in nginx config is that when nginx forwards requests, those requests are sent from the nginx container and because it's `localhost`, the request would be looped back into the nginx container. what it should do is after requests are forwarded by nginx, they leave the nginx container, go back to the host which is then sent to the client and server containers that are running on the host.
+
+now that are are targeting host from within the nginx container, then we should set the forward-url as the host's private IP which was discussed earlier. once the forwarded request arrives at the host, it needs to be sent to the client or server container which is accessible using the port set up during port publishing. so the nginx config should be: bind port 80 to `http://<private ip of host>:3001` and binding port 8080 to `http://<private ip of host>:3000`
+
+once the config file has been created, simpl copy the config file from your local machine into the running nginx container using: `sudo docker cp <path on local machine to config file>/default.conf <nginx container name>:/etc/nginx/conf.d/` and then reload nginx with the updated config in the container by running `sudo docker exec <nginx container name> nginx -s reload`
+
+this is the manual step you would take but in the actual setup using docker compose, this step is done slightly differently because we want to use env var in the config file for client and server urls to avoid committing the host's private IP to source control. instead of `default.config` file we use `default.template` file. the content should be indentical except that in the template file, all values that need to be read from env vars are replaced with `${ENV_VAR}`. this is unusable on its own but there's a `start.sh` script that uses `envsubst` to substitute all instances of env var templates in `default.template` with their actual values loaded from the host (ie. the output script when run against the template file would be the exact content of the template file except any instances of `${ENV_VAR}` would be replaced with the actual value set to `ENV_VAR` in the host machine). the output is then written to `default.config` in the expected location for nginx config inside the container. the `default.config` file is always generated using `default.template` and `start.sh` so it doesn't need to be committed to source control
+
+**setup**
+
+- set `MONGO_URI` env var to `mongodb://mongodb:27017/auckland-mall-guide`
+- set up `3000:3000` port publishing for server container so it is accessible on the host at `http://localhost:3000`
+- set up `3001:3000` port publishing for client container so it is accessible on the host at `http://localhost:3001`
+- configure port 8080 in `nginx/default.template` to forward requests to `${SERVER_URL}`
+  - set `SERVER_URL` env var to `http://<private IP of host>:3000`
+- configure port 80 in `nginx/default.template` to forward requests to `${CLIENT_URL}`
+  - set `CLIENT_URL` env var to `http://<private IP of host>:3001`
+- set up `8080:8080` and `80:80` port publishing for nginx container so it is accessible on the host at `http://localhost:8080`and `http://localhost`
+  - `http://localhost:8080` gets forwarded to server container at `${SERVER_URL}`: `http://<private IP of host>:3000`
+  - `http://localhost` gets forwarded to client container at `${CLIENT_URL}`: `http://<private IP of host>:3001`
+- copy `default.template` and `start.sh` so they can be used inside nginx container for configuration using volumes
+- set `VITE_API_URL` env var to `http://localhost:8080/api/malls`
+  - this env var is used by the client pages to make requests to server container
+  - can either be set to `http://localhost:8080/api/malls` or `http://localhost:3000/api/malls`
+  - 3000 is accessible because of port publishing on host for server container
+  - 8080 also works because `http://localhost:8080` targets the nginx container and 8080 will reroute the request to `http://localhost:3000`
+  - bit pointless because the request takes a detour to nginx instead of straight to the server but it demonstrates the what nginx allows you to do
+
+with all this set up, can access the whole app by typing `http://localhost` in the browser (`http://localhost:3001` also works for the same reason as the last few bullet points above)
