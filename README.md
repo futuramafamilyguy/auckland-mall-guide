@@ -7,6 +7,12 @@ this is intended for small personal projects and not large scale enterprise appl
 this repo covers a few different options for container setup to show what's possible and to understand docker's networking mechanisms a little deeper.
 these options will have their own dedicated branch with the `main` branch being the recommended setup
 
+here are the manual steps required to run any of the following setups:
+
+- checkout the respective branch of the setup
+- set required env vars (see the setup section for the required env vars and their values)
+- run `docker compose up -d` on the root dir of project
+
 <hr>
 
 ### [host network access](https://github.com/futuramafamilyguy/auckland-mall-guide/tree/host-network)
@@ -41,9 +47,9 @@ setup:
 - if running locally (eg. on a laptop connected to a home network), server container can access the host (and in turn mongodb container) using the host's private IP
 - by default (depending on Docker's network configuration), containers are connected to an internal virtual network managed by docker, which is isolated from the host's private network, allowing containers to communicate with each other using their private IPs
   - isolation means containers cannot directly interact with devices on the host's network unless explicitly configured to do so but there is a special case where containers are able to access the host via its private IP in its own network
-- once you find your host's private IP, you can verify it's reachable from the container by running `ping <host private ip>` inside the container
-- if it works, set env var `MONGO_URI=mongodb://<host private ip>:27017/auckland-mall-guide` in `docker-compose.yml`
-- if running docker on windows and macos, there is a `host.docker.internal` address that resolves to the host's private IP reachable by its containers
+- once you find your host's private IP, you can verify it's reachable from the container by running `ping <host private ip>` inside the container **<--- can do this**
+- if it works, set env var `MONGO_URI=mongodb://<host private ip>:27017/auckland-mall-guide` in `docker-compose.yml` **<--- you need to do this**
+- if running docker on windows and macos, there is a `host.docker.internal` address that resolves to the host's private IP reachable by its containers **<--- can do this**
 
 <hr>
 
@@ -62,7 +68,7 @@ suitable if:
 setup:
 
 - no need to set up port publishing for mongodb because server will communicate with it via docker's internal network
-- server depends on `MONGO_URI` env var so set it to `mongodb://mongodb:27017/auckland-mall-guide` (this will be the same for both prod and local)
+- server depends on `MONGO_URI` env var so set it to `mongodb://mongodb:27017/auckland-mall-guide` (this will be the same for both prod and local) **<--- you need to do this**
 - server needs to be publicly accessible so set up port publishing `3000:3000` (server app listens on 3000 within the container and will receive requests sent to port 3000 of the host)
 - client needs to be publicly accessible so set up port publishing `3001:3000` (serve-webpage service listens on 3000 within the client container so there is no conflict with the server app listening on 3000 in the server container but the host port must be different to avoid conflicts)
 - should mention that in `docker-compose.yml`, `VITE_API_URL` is declared as a build arg instead of an env var
@@ -77,7 +83,7 @@ setup:
 
 **local environment**
 
-- client depends on `VITE_API_URL` env var so set it to `http://localhost:3000/api/malls`
+- client depends on `VITE_API_URL` env var so set it to `http://localhost:3000/api/malls` **<--- you need to do this**
 - client itself will be accessible at `http://localhost:3001`
 
 **localhost vs private IP**
@@ -95,8 +101,8 @@ this is for local environment only
   - server app runs on container A port 3000
   - database runs on container B port 27107
   - the server app itself sends requests to the database using its container's (container A) networking stack
-  - if server communicates with database using localhost (ie. `mongodb://localhost:27017/auckland-mall-guide`), then the request will be routed back to the same container (container A) port 27107 **<----- here is the answer**
-  - nothing will happen because only the server app is running on container A and nothing is listening on port 27107 **<----- here is the answer**
+  - if server communicates with database using localhost (ie. `mongodb://localhost:27017/auckland-mall-guide`), then the request will be routed back to the same container (container A) port 27107
+  - nothing will happen because only the server app is running on container A and nothing is listening on port 27107
   - the databse runs on a separate container (cotnainer B) so the request must leave container A which is why localhost doesn't work here
   - database is exposed to the host network so in order to locate container B, need to locate the host which we can do so via the host's private IP using the corresponding port set up in port publishing (more details on this explained in the host network access section)
 - **client -> server: localhost**
@@ -174,18 +180,18 @@ this is the manual step you would take but in the actual setup using docker comp
 
 **setup**
 
-- set `MONGO_URI` env var to `mongodb://mongodb:27017/auckland-mall-guide`
+- set `MONGO_URI` env var to `mongodb://mongodb:27017/auckland-mall-guide` **<--- you need to do this**
 - set up `3000:3000` port publishing for server container so it is accessible on the host at `http://localhost:3000`
 - set up `3001:3000` port publishing for client container so it is accessible on the host at `http://localhost:3001`
 - configure port 8080 in `nginx/default.template` to forward requests to `${SERVER_URL}`
-  - set `SERVER_URL` env var to `http://<private IP of host>:3000`
+  - set `SERVER_URL` env var to `http://<private IP of host>:3000` **<--- you need to do this**
 - configure port 80 in `nginx/default.template` to forward requests to `${CLIENT_URL}`
-  - set `CLIENT_URL` env var to `http://<private IP of host>:3001`
+  - set `CLIENT_URL` env var to `http://<private IP of host>:3001` **<--- you need to do this**
 - set up `8080:8080` and `80:80` port publishing for nginx container so it is accessible on the host at `http://localhost:8080`and `http://localhost`
   - `http://localhost:8080` gets forwarded to server container at `${SERVER_URL}`: `http://<private IP of host>:3000`
   - `http://localhost` gets forwarded to client container at `${CLIENT_URL}`: `http://<private IP of host>:3001`
 - copy `default.template` and `start.sh` so they can be used inside nginx container for configuration using volumes
-- set `VITE_API_URL` env var to `http://localhost:8080/api/malls`
+- set `VITE_API_URL` env var to `http://localhost:8080/api/malls` **<--- you need to do this**
   - this env var is used by the client pages to make requests to server container
   - can either be set to `http://localhost:8080/api/malls` or `http://localhost:3000/api/malls`
   - 3000 is accessible because of port publishing on host for server container
