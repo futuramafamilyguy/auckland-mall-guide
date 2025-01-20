@@ -1,7 +1,7 @@
 server {
     listen       80;
     listen  [::]:80;
-    server_name  localhost;
+    server_name  ${DOMAIN};
 
     location / {
         proxy_pass ${CLIENT_URL};
@@ -11,8 +11,7 @@ server {
 server {
     listen       8080;
     listen  [::]:8080;
-    server_name  localhost;
-
+    server_name  ${DOMAIN};
 
     location / {
         proxy_pass ${SERVER_URL};
