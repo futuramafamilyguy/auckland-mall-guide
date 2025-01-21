@@ -1,7 +1,18 @@
 server {
-    listen       80;
-    listen  [::]:80;
-    server_name  ${DOMAIN};
+    listen 80;
+    server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN};
+
+    location / {
+	    return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name www.${DOMAIN} ${DOMAIN};
+
+    ssl_certificate /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/live/${DOMAIN}/privkey.pem;
 
     location / {
         proxy_pass ${CLIENT_URL};
@@ -9,11 +20,13 @@ server {
 }
 
 server {
-    listen       8080;
-    listen  [::]:8080;
-    server_name  ${DOMAIN};
+	listen 443 ssl;
+	server_name api.${DOMAIN};
+	
+	ssl_certificate /etc/nginx/ssl/live/${DOMAIN}/fullchain.pem;
+	ssl_certificate_key /etc/nginx/ssl/live/${DOMAIN}/privkey.pem;
 
-    location / {
-        proxy_pass ${SERVER_URL};
-    }
+	location / {
+		proxy_pass ${SERVER_URL};
+	}
 }
